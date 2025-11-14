@@ -1,0 +1,3 @@
+# This file ensures the example_progress/ directory is tracked by Git
+# Progress images will be generated during training
+
