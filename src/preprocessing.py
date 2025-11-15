@@ -363,6 +363,106 @@ def preprocess_for_mnist(image: np.ndarray, target_size: Tuple[int, int] = (28, 
     return normalized.reshape(1, 28, 28, 1), smoothed, progress
 
 
+def preprocess_for_alphabet(
+    image: np.ndarray,
+    target_size: Tuple[int, int] = (28, 28),
+    save_steps: bool = False,
+    output_dir: str = "example_progress/progress_images",
+) -> Tuple[np.ndarray, np.ndarray, Dict]:
+    """
+    Version nâng cao - nếu ảnh input chất lượng kém
+    Nhưng CHÚ Ý: Model phải được train với cùng pipeline này
+    """
+    if save_steps:
+        os.makedirs(output_dir, exist_ok=True)
+    
+    progress = {}
+    
+    # Grayscale
+    if len(image.shape) == 3:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = image.copy()
+    progress['step01_grayscale'] = gray.copy()
+    if save_steps: cv2.imwrite(f'{output_dir}/step01_grayscale.png', gray)
+    
+    # Denoise nhẹ
+    blurred = cv2.GaussianBlur(gray, (3, 3), 0)
+    progress['step02_blur'] = blurred.copy()
+    if save_steps: cv2.imwrite(f'{output_dir}/step02_blur.png', blurred)
+    
+    # Threshold Otsu
+    _, binary = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    progress['step03_threshold'] = binary.copy()
+    if save_steps: cv2.imwrite(f'{output_dir}/step03_threshold.png', binary)
+    
+    # Xác định nền (kiểm tra góc)
+    h, w = binary.shape
+    corner_size = min(h, w) // 10
+    corners = [
+        binary[0:corner_size, 0:corner_size],
+        binary[0:corner_size, w-corner_size:w],
+        binary[h-corner_size:h, 0:corner_size],
+        binary[h-corner_size:h, w-corner_size:w]
+    ]
+    corner_white = np.mean([np.sum(c == 255) / c.size for c in corners])
+    
+    # Invert nếu cần (để có chữ TRẮNG trên nền ĐEN)
+    if corner_white > 0.5:
+        binary = cv2.bitwise_not(binary)
+    
+    progress['step04_inverted'] = binary.copy()
+    if save_steps: cv2.imwrite(f'{output_dir}/step04_inverted.png', binary)
+    
+    # Tìm bbox của tất cả pixels trắng
+    coords = cv2.findNonZero(binary)
+    if coords is not None and len(coords) > 0:
+        x, y, w_box, h_box = cv2.boundingRect(coords)
+        
+        # Crop với padding
+        pad = max(4, int(min(w_box, h_box) * 0.1))
+        x1 = max(0, x - pad)
+        y1 = max(0, y - pad)
+        x2 = min(binary.shape[1], x + w_box + pad)
+        y2 = min(binary.shape[0], y + h_box + pad)
+        
+        cropped = binary[y1:y2, x1:x2]
+    else:
+        cropped = binary
+    
+    progress['step05_cropped'] = cropped.copy()
+    if save_steps: cv2.imwrite(f'{output_dir}/step05_cropped.png', cropped)
+    
+    # Resize giữ tỷ lệ, fit vào 20x20
+    ch, cw = cropped.shape
+    target_inner = 20
+    scale = min(target_inner / cw, target_inner / ch)
+    new_w = max(1, int(cw * scale))
+    new_h = max(1, int(ch * scale))
+    
+    resized_char = cv2.resize(cropped, (new_w, new_h), interpolation=cv2.INTER_AREA)
+    
+    # Center vào canvas 28x28
+    canvas = np.zeros(target_size, dtype=np.uint8)
+    top = (target_size[0] - new_h) // 2
+    left = (target_size[1] - new_w) // 2
+    canvas[top:top+new_h, left:left+new_w] = resized_char
+    
+    progress['step06_centered'] = canvas.copy()
+    if save_steps: cv2.imwrite(f'{output_dir}/step06_centered.png', canvas)
+    
+    # Smooth nhẹ
+    smoothed = cv2.GaussianBlur(canvas, (3, 3), 0)
+    progress['step07_smoothed'] = smoothed.copy()
+    if save_steps: cv2.imwrite(f'{output_dir}/step07_smoothed.png', smoothed)
+    
+    # Normalize
+    normalized = smoothed.astype(np.float32) / 255.0
+    processed = normalized.reshape(1, 28, 28, 1)
+    
+    return processed, smoothed, progress
+
+
 def preprocess_for_shapes(image: np.ndarray, target_size: Tuple[int, int] = (64, 64),
                           save_steps: bool = False, output_dir: str = "example_progress/progress_images") -> Tuple[np.ndarray, np.ndarray, Dict]:
     """

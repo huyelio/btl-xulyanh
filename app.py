@@ -16,7 +16,12 @@ from streamlit_drawable_canvas import st_canvas
 # Thêm thư mục src vào path
 sys.path.append('src')
 
-from preprocessing import preprocess_for_mnist, preprocess_for_shapes, preprocess_for_chinese
+from preprocessing import (
+    preprocess_for_mnist,
+    preprocess_for_shapes,
+    preprocess_for_chinese,
+    preprocess_for_alphabet,
+)
 
 # Cấu hình trang
 st.set_page_config(
@@ -58,6 +63,7 @@ def load_models():
     mnist_path = 'models/mnist_model_augmented.h5'
     shapes_path = 'models/shapes_model_v2.h5'
     chinese_path = 'models/chinese_model.h5'
+    alphabet_path = 'models/alphabet_model.h5'
     
     if os.path.exists(mnist_path):
         models['mnist'] = keras.models.load_model(mnist_path)
@@ -65,6 +71,8 @@ def load_models():
         models['shapes'] = keras.models.load_model(shapes_path)
     if os.path.exists(chinese_path):
         models['chinese'] = keras.models.load_model(chinese_path)
+    if os.path.exists(alphabet_path):
+        models['alphabet'] = keras.models.load_model(alphabet_path)
     
     return models
 
@@ -80,6 +88,7 @@ def main():
     CHINESE_LABELS = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '百', '千', '万', '亿']
     CHINESE_LABELS_VN = ['số 0', 'số 1', 'số 2', 'số 3', 'số 4', 'số 5', 'số 6', 'số 7', 'số 8', 'số 9', 
                          'số 10', 'trăm', 'nghìn', 'vạn (10,000)', 'ức (100 triệu)']
+    ALPHABET_LABELS = [chr(ord('A') + i) for i in range(26)]
     
     models = load_models()
 
@@ -99,6 +108,20 @@ def main():
             result = np.argmax(prediction)
             confidence = prediction[0][result]
             result_text = f"Chữ số: **{result}**"
+
+            top3_idx = np.argsort(prediction[0])[-3:][::-1]
+            top3_probs = prediction[0][top3_idx]
+            shapes_labels = None
+        elif mode == "Chữ cái (A-Z)":
+            processed, display_img, progress = preprocess_for_alphabet(
+                input_image,
+                save_steps=show_pipeline,
+                output_dir=output_dir,
+            )
+            prediction = models["alphabet"].predict(processed, verbose=0)
+            result = np.argmax(prediction)
+            confidence = prediction[0][result]
+            result_text = f"Chữ cái: **{ALPHABET_LABELS[result]}**"
 
             top3_idx = np.argsort(prediction[0])[-3:][::-1]
             top3_probs = prediction[0][top3_idx]
@@ -153,7 +176,10 @@ def main():
     
     with col1:
         st.subheader("Cài đặt")
-        mode = st.radio("Chế độ:", ["Chữ số (MNIST)", "Hình học (Shapes)", "Chữ số Trung Quốc (Chinese)"])
+        mode = st.radio(
+            "Chế độ:",
+            ["Chữ số (MNIST)", "Chữ cái (A-Z)", "Hình học (Shapes)", "Chữ số Trung Quốc (Chinese)"],
+        )
         
         # Thêm option hiển thị pipeline
         show_pipeline = st.checkbox("Hiển thị từng bước xử lý", value=False)
@@ -230,6 +256,8 @@ def main():
             # Xác định model tương ứng với chế độ
             if mode == "Chữ số (MNIST)":
                 model_key = "mnist"
+            elif mode == "Chữ cái (A-Z)":
+                model_key = "alphabet"
             elif mode == "Hình học (Shapes)":
                 model_key = "shapes"
             else:
@@ -282,6 +310,8 @@ def main():
                             for idx_pred, prob in zip(top3_idx, top3_probs):
                                 if mode == "Chữ số (MNIST)":
                                     label = str(idx_pred)
+                                elif mode == "Chữ cái (A-Z)":
+                                    label = ALPHABET_LABELS[idx_pred]
                                 elif mode == "Hình học (Shapes)" and shapes_labels is not None:
                                     label = shapes_labels[idx_pred]
                                 else:
@@ -395,6 +425,8 @@ def main():
                             for idx_pred, prob in zip(top3_idx, top3_probs):
                                 if mode == "Chữ số (MNIST)":
                                     label = str(idx_pred)
+                                elif mode == "Chữ cái (A-Z)":
+                                    label = ALPHABET_LABELS[idx_pred]
                                 elif mode == "Hình học (Shapes)" and shapes_labels is not None:
                                     label = shapes_labels[idx_pred]
                                 else:
