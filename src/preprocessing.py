@@ -555,35 +555,33 @@ def preprocess_for_chinese(
     progress['step04_inverted'] = inverted.copy()
     if save_steps: cv2.imwrite(f'{output_dir}/step04_inverted.png', inverted)
     
-    # BƯỚC 5: Tìm bounding box của chữ
-    contours, _ = cv2.findContours(inverted, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    if len(contours) > 0:
-        # Tìm contour lớn nhất
-        largest_contour = max(contours, key=cv2.contourArea)
-        x, y, w, h = cv2.boundingRect(largest_contour)
-        
+    # BƯỚC 5: Tìm bounding box của TẤT CẢ pixels trắng (giống chiến lược MNIST)
+    coords = cv2.findNonZero(inverted)
+    if coords is not None and len(coords) > 0:
+        x, y, w, h = cv2.boundingRect(coords)
+
         # Vẽ bbox để debug
         bbox_img = cv2.cvtColor(inverted.copy(), cv2.COLOR_GRAY2BGR)
-        cv2.rectangle(bbox_img, (x, y), (x+w, y+h), (0, 255, 0), 2)
+        cv2.rectangle(bbox_img, (x, y), (x + w, y + h), (0, 255, 0), 2)
         progress['step05_bbox'] = bbox_img
-        if save_steps: cv2.imwrite(f'{output_dir}/step05_bbox.png', bbox_img)
-        
-        # BƯỚC 6: Crop với padding
-        pad = max(5, int(min(w, h) * 0.15))
+        if save_steps:
+            cv2.imwrite(f'{output_dir}/step05_bbox.png', bbox_img)
+
+        # BƯỚC 6: Crop với padding (bao trọn toàn bộ ký tự, không mất nét)
+        pad = max(8, int(min(w, h) * 0.1))
         x1 = max(0, x - pad)
         y1 = max(0, y - pad)
         x2 = min(inverted.shape[1], x + w + pad)
         y2 = min(inverted.shape[0], y + h + pad)
-        
+
         cropped = inverted[y1:y2, x1:x2]
-        progress['step06_cropped'] = cropped.copy()
-        if save_steps: cv2.imwrite(f'{output_dir}/step06_cropped.png', cropped)
     else:
-        # Nếu không tìm thấy contour, dùng toàn bộ ảnh
+        # Nếu không tìm thấy pixel trắng, dùng toàn bộ ảnh
         cropped = inverted.copy()
-        progress['step06_cropped'] = cropped.copy()
-        if save_steps: cv2.imwrite(f'{output_dir}/step06_cropped.png', cropped)
+
+    progress['step06_cropped'] = cropped.copy()
+    if save_steps:
+        cv2.imwrite(f'{output_dir}/step06_cropped.png', cropped)
     
     # BƯỚC 7: Resize giữ tỷ lệ khung hình, fit vào 56x56
     h, w = cropped.shape

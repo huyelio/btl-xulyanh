@@ -102,3 +102,4 @@ dmypy.json
 *.sqlite
 *.sqlite3
 
+shapes_dataset_v2/
