@@ -55,6 +55,25 @@ y_test_mnist = keras.utils.to_categorical(y_test_mnist, 10)
 
 print(f"✓ Train: {x_train_mnist.shape}, Test: {x_test_mnist.shape}")
 
+# 🚀 DATA AUGMENTATION - Giải pháp cho Domain Gap!
+print("\n🎨 Tạo Data Augmentation Generator...")
+print("   → Giúp model quen với ảnh bị lệch, xoay, zoom...")
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
+datagen = ImageDataGenerator(
+    rotation_range=15,       # Ngẫu nhiên xoay +/- 15 độ
+    width_shift_range=0.15,  # Ngẫu nhiên dịch ngang 15%
+    height_shift_range=0.15, # Ngẫu nhiên dịch dọc 15%
+    zoom_range=0.15,         # Ngẫu nhiên phóng to/thu nhỏ 15%
+    shear_range=0.1,         # Ngẫu nhiên làm méo ảnh
+    fill_mode='constant',    # Fill phần trống bằng 0 (màu đen)
+    cval=0
+)
+
+# Fit datagen vào training data
+datagen.fit(x_train_mnist)
+print("✓ Data Augmentation ready!")
+
 # Hiển thị mẫu
 fig, axes = plt.subplots(1, 5, figsize=(12, 2))
 for i, ax in enumerate(axes):
@@ -96,13 +115,14 @@ mnist_model.compile(
 
 mnist_model.summary()
 
-# Train
-print("\n🎯 Training MNIST model...")
+# Train với Data Augmentation
+print("\n🎯 Training MNIST model với Data Augmentation...")
+print("   → Tăng epochs lên 30 vì model phải học bài toán khó hơn")
 history_mnist = mnist_model.fit(
-    x_train_mnist, y_train_mnist,
-    batch_size=128,
-    epochs=20,
+    datagen.flow(x_train_mnist, y_train_mnist, batch_size=128),
+    epochs=30,
     validation_data=(x_test_mnist, y_test_mnist),
+    steps_per_epoch=len(x_train_mnist) // 128,
     verbose=1
 )
 

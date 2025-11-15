@@ -129,14 +129,15 @@ def demonstrate_preprocessing():
         print(f"✓ Đã xử lý và lưu {len(preprocessor.get_progress_images())} bước")
 
 
-def train_mnist_model(epochs=15, batch_size=128, save_dir='models'):
+def train_mnist_model(epochs=30, batch_size=128, save_dir='models', use_augmentation=True):
     """
-    Huấn luyện MNIST model
+    Huấn luyện MNIST model với Data Augmentation
     
     Args:
-        epochs: Số epoch
+        epochs: Số epoch (mặc định 30 với augmentation)
         batch_size: Batch size
         save_dir: Thư mục lưu model
+        use_augmentation: Sử dụng Data Augmentation để giải quyết Domain Gap
     """
     # Tạo thư mục nếu chưa có
     os.makedirs(save_dir, exist_ok=True)
@@ -147,6 +148,26 @@ def train_mnist_model(epochs=15, batch_size=128, save_dir='models'):
     
     # Load data
     (x_train, y_train), (x_test, y_test) = load_and_preprocess_mnist()
+    
+    # 🚀 DATA AUGMENTATION - Giải pháp cho Domain Gap!
+    if use_augmentation:
+        print("\n🎨 Tạo Data Augmentation Generator...")
+        print("   → Giúp model quen với ảnh bị lệch, xoay, zoom...")
+        from tensorflow.keras.preprocessing.image import ImageDataGenerator
+        
+        datagen = ImageDataGenerator(
+            rotation_range=15,       # Ngẫu nhiên xoay +/- 15 độ
+            width_shift_range=0.15,  # Ngẫu nhiên dịch ngang 15%
+            height_shift_range=0.15, # Ngẫu nhiên dịch dọc 15%
+            zoom_range=0.15,         # Ngẫu nhiên phóng to/thu nhỏ 15%
+            shear_range=0.1,         # Ngẫu nhiên làm méo ảnh
+            fill_mode='constant',    # Fill phần trống bằng 0 (màu đen)
+            cval=0
+        )
+        
+        # Fit datagen vào training data
+        datagen.fit(x_train)
+        print("✓ Data Augmentation ready!")
     
     # Tạo model
     print("\nTạo model...")
@@ -186,14 +207,25 @@ def train_mnist_model(epochs=15, batch_size=128, save_dir='models'):
     
     # Train model
     print(f"\nBắt đầu huấn luyện ({epochs} epochs, batch_size={batch_size})...")
-    history = model.fit(
-        x_train, y_train,
-        batch_size=batch_size,
-        epochs=epochs,
-        validation_data=(x_test, y_test),
-        callbacks=callbacks,
-        verbose=1
-    )
+    if use_augmentation:
+        print("   → Sử dụng Data Augmentation - model sẽ khoan dung hơn với ảnh thực tế!")
+        history = model.fit(
+            datagen.flow(x_train, y_train, batch_size=batch_size),
+            epochs=epochs,
+            validation_data=(x_test, y_test),
+            steps_per_epoch=len(x_train) // batch_size,
+            callbacks=callbacks,
+            verbose=1
+        )
+    else:
+        history = model.fit(
+            x_train, y_train,
+            batch_size=batch_size,
+            epochs=epochs,
+            validation_data=(x_test, y_test),
+            callbacks=callbacks,
+            verbose=1
+        )
     
     # Evaluate
     print("\nĐánh giá model trên test set...")
@@ -232,14 +264,17 @@ if __name__ == "__main__":
     # Demo preprocessing pipeline
     demonstrate_preprocessing()
     
-    # Train model
+    # Train model với Data Augmentation
     model, history = train_mnist_model(
-        epochs=15,
+        epochs=30,  # Tăng epochs vì model phải học bài toán khó hơn
         batch_size=128,
-        save_dir='models'
+        save_dir='models',
+        use_augmentation=True  # Bật Data Augmentation để giải quyết Domain Gap
     )
     
     print("\n" + "="*60)
     print("✓ HOÀN THÀNH HUẤN LUYỆN MNIST MODEL")
+    print("✓ Model đã được train với Data Augmentation!")
+    print("✓ Bây giờ model sẽ chính xác hơn với ảnh viết tay thực tế!")
     print("="*60)
 

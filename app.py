@@ -50,7 +50,8 @@ def load_models():
     """Load các models đã huấn luyện"""
     models = {}
     
-    mnist_path = 'models/mnist_model.h5'
+    # mnist_path = 'models/mnist_model.h5'
+    mnist_path = 'models/mnist_model_augmented.h5'
     shapes_path = 'models/shapes_model.h5'
     
     if os.path.exists(mnist_path):

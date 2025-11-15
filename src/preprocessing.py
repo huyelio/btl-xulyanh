@@ -228,9 +228,17 @@ class ImagePreprocessor:
 def preprocess_for_mnist(image: np.ndarray, target_size: Tuple[int, int] = (28, 28), 
                          save_steps: bool = False, output_dir: str = "example_progress/progress_images") -> Tuple[np.ndarray, np.ndarray, Dict]:
     """
-    Preprocessing ROBUST cho MNIST - Xử lý mọi loại ảnh về chuẩn: TRẮNG trên ĐEN
+    Preprocessing SIÊU ĐƠN GIẢN cho MNIST - Tập trung GIỮ NGUYÊN hình dạng chữ số
     
     MỤC TIÊU: Chữ số TRẮNG (255) trên nền ĐEN (0) - giống MNIST gốc
+    
+    CHIẾN LƯỢC (v7 - Minimalist & Shape-Preserving):
+        - Denoise nhẹ nhàng - chỉ đủ để giảm nhiễu
+        - Otsu threshold - đơn giản và hiệu quả
+        - KHÔNG dùng morphology (tránh phá hủy/chia tách chữ số)
+        - Tìm bounding box của TẤT CẢ pixels trắng (không dùng contour/components)
+        - Resize + center đơn giản
+        - Minimal processing = Maximum shape preservation
     
     Args:
         image: Ảnh đầu vào (bất kỳ màu, nền gì)
@@ -257,117 +265,99 @@ def preprocess_for_mnist(image: np.ndarray, target_size: Tuple[int, int] = (28, 
     progress['step01_grayscale'] = gray.copy()
     if save_steps: cv2.imwrite(f'{output_dir}/step01_grayscale.png', gray)
     
-    # BƯỚC 2: Histogram Equalization (CLAHE - tốt hơn equalizeHist)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    enhanced = clahe.apply(gray)
-    progress['step02_clahe'] = enhanced.copy()
-    if save_steps: cv2.imwrite(f'{output_dir}/step02_clahe.png', enhanced)
+    # BƯỚC 2: Denoise nhẹ - Gaussian blur vừa phải
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    progress['step02_gaussian_blur'] = blurred.copy()
+    if save_steps: cv2.imwrite(f'{output_dir}/step02_gaussian_blur.png', blurred)
     
-    # BƯỚC 3: Gaussian Blur để giảm nhiễu
-    blurred = cv2.GaussianBlur(enhanced, (5, 5), 0)
-    progress['step03_gaussian_blur'] = blurred.copy()
-    if save_steps: cv2.imwrite(f'{output_dir}/step03_gaussian_blur.png', blurred)
-    
-    # BƯỚC 4: Otsu Threshold - tự động tìm ngưỡng tối ưu
+    # BƯỚC 3: Otsu Threshold - Tự động, đơn giản, hiệu quả
     _, binary = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    progress['step04_otsu_threshold'] = binary.copy()
-    if save_steps: cv2.imwrite(f'{output_dir}/step04_otsu_threshold.png', binary)
+    progress['step03_otsu_threshold'] = binary.copy()
+    if save_steps: cv2.imwrite(f'{output_dir}/step03_otsu_threshold.png', binary)
     
-    # BƯỚC 5: XÁC ĐỊNH NỀN - Phương pháp ROBUST
-    # Đếm pixel ở 4 góc ảnh (nền thường ở góc)
+    # BƯỚC 4: XÁC ĐỊNH NỀN - Kiểm tra góc ảnh
     h, w = binary.shape
-    corner_size = min(h, w) // 10  # 10% kích thước
+    corner_size = min(h, w) // 10
     corners = [
-        binary[0:corner_size, 0:corner_size],              # Top-left
-        binary[0:corner_size, w-corner_size:w],            # Top-right
-        binary[h-corner_size:h, 0:corner_size],            # Bottom-left
-        binary[h-corner_size:h, w-corner_size:w]           # Bottom-right
+        binary[0:corner_size, 0:corner_size],
+        binary[0:corner_size, w-corner_size:w],
+        binary[h-corner_size:h, 0:corner_size],
+        binary[h-corner_size:h, w-corner_size:w]
     ]
     
-    # Đếm pixel trắng ở góc
     corner_white_ratio = np.mean([np.sum(corner == 255) / corner.size for corner in corners])
-    
-    # Nếu >50% góc là trắng → nền trắng → CẦN INVERT để có nền đen
     need_invert = corner_white_ratio > 0.5
     
     if need_invert:
         binary = cv2.bitwise_not(binary)
-        progress['step05_inverted'] = binary.copy()
-        if save_steps: cv2.imwrite(f'{output_dir}/step05_inverted.png', binary)
+        progress['step04_inverted'] = binary.copy()
+        if save_steps: cv2.imwrite(f'{output_dir}/step04_inverted.png', binary)
     else:
-        progress['step05_inverted'] = binary.copy()
-        if save_steps: cv2.imwrite(f'{output_dir}/step05_no_invert_needed.png', binary)
+        progress['step04_no_invert'] = binary.copy()
+        if save_steps: cv2.imwrite(f'{output_dir}/step04_no_invert_needed.png', binary)
     
-    # BƯỚC 6: Morphology Opening - loại bỏ nhiễu nhỏ
-    kernel = np.ones((2, 2), np.uint8)
-    opened = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=1)
-    progress['step06_morphology_open'] = opened.copy()
-    if save_steps: cv2.imwrite(f'{output_dir}/step06_morphology_open.png', opened)
+    # BƯỚC 5: Tìm bounding box của TẤT CẢ pixels trắng
+    # Không dùng contour hay connected components - tránh mất phần của chữ số
+    coords = cv2.findNonZero(binary)
     
-    # BƯỚC 7: Morphology Closing - lấp lỗ nhỏ
-    closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel, iterations=1)
-    progress['step07_morphology_close'] = closed.copy()
-    if save_steps: cv2.imwrite(f'{output_dir}/step07_morphology_close.png', closed)
-    
-    # BƯỚC 8: Tìm contour và crop
-    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    if len(contours) == 0:
-        # Không tìm thấy → resize trực tiếp
-        resized = cv2.resize(closed, target_size, interpolation=cv2.INTER_AREA)
-        progress['step08_contour'] = closed.copy()
-    else:
-        # Tìm contour lớn nhất
-        largest_contour = max(contours, key=cv2.contourArea)
-        x, y, w_cont, h_cont = cv2.boundingRect(largest_contour)
+    if coords is not None and len(coords) > 0:
+        # Tìm bounding box bao quanh TẤT CẢ pixels trắng
+        x, y, w_bbox, h_bbox = cv2.boundingRect(coords)
         
-        # Vẽ contour để debug
-        contour_img = cv2.cvtColor(closed.copy(), cv2.COLOR_GRAY2BGR)
-        cv2.rectangle(contour_img, (x, y), (x+w_cont, y+h_cont), (0, 255, 0), 2)
-        progress['step08_contour'] = contour_img
-        if save_steps: cv2.imwrite(f'{output_dir}/step08_contour.png', contour_img)
+        # Vẽ bbox để debug
+        bbox_img = cv2.cvtColor(binary.copy(), cv2.COLOR_GRAY2BGR)
+        cv2.rectangle(bbox_img, (x, y), (x+w_bbox, y+h_bbox), (0, 255, 0), 2)
+        progress['step05_bbox'] = bbox_img
+        if save_steps: cv2.imwrite(f'{output_dir}/step05_bbox.png', bbox_img)
         
         # Crop với padding
-        pad = max(2, int(min(w_cont, h_cont) * 0.15))  # 15% padding
+        pad = max(8, int(min(w_bbox, h_bbox) * 0.1))  # 10% padding, tối thiểu 8px
         x1 = max(0, x - pad)
         y1 = max(0, y - pad)
-        x2 = min(closed.shape[1], x + w_cont + pad)
-        y2 = min(closed.shape[0], y + h_cont + pad)
+        x2 = min(binary.shape[1], x + w_bbox + pad)
+        y2 = min(binary.shape[0], y + h_bbox + pad)
         
-        digit = closed[y1:y2, x1:x2]
-        progress['step09_cropped'] = digit.copy()
-        if save_steps: cv2.imwrite(f'{output_dir}/step09_cropped.png', digit)
+        digit = binary[y1:y2, x1:x2]
+        progress['step06_cropped'] = digit.copy()
+        if save_steps: cv2.imwrite(f'{output_dir}/step06_cropped.png', digit)
         
-        # BƯỚC 9: Resize giữ tỷ lệ + CENTER (giống MNIST)
-        # Fit vào 20x20, để border 4px mỗi bên
+        # BƯỚC 6: Resize giữ tỷ lệ + center vào 28x28
         dh, dw = digit.shape
+        
+        # Fit vào 20x20 (giống MNIST - để border 4px mỗi bên)
         target_inner = 20
         scale = min(target_inner / dw, target_inner / dh)
         
-        new_w = int(dw * scale)
-        new_h = int(dh * scale)
+        new_w = max(1, int(dw * scale))
+        new_h = max(1, int(dh * scale))
         
-        # Resize với INTER_AREA (tốt nhất cho downscale)
+        # Resize
         resized_digit = cv2.resize(digit, (new_w, new_h), interpolation=cv2.INTER_AREA)
-        progress['step10_resized'] = resized_digit.copy()
-        if save_steps: cv2.imwrite(f'{output_dir}/step10_resized.png', resized_digit)
+        progress['step07_resized'] = resized_digit.copy()
+        if save_steps: cv2.imwrite(f'{output_dir}/step07_resized.png', resized_digit)
         
-        # BƯỚC 10: Center vào canvas 28x28
+        # BƯỚC 7: Center vào canvas 28x28
         canvas = np.zeros(target_size, dtype=np.uint8)
         top = (target_size[0] - new_h) // 2
         left = (target_size[1] - new_w) // 2
         canvas[top:top+new_h, left:left+new_w] = resized_digit
         
-        resized = canvas
-        progress['step11_centered'] = resized.copy()
-        if save_steps: cv2.imwrite(f'{output_dir}/step11_centered.png', resized)
+        progress['step08_centered'] = canvas.copy()
+        if save_steps: cv2.imwrite(f'{output_dir}/step08_centered.png', canvas)
+        
+        final = canvas
+    else:
+        # Không tìm thấy pixels trắng - resize toàn bộ ảnh
+        final = cv2.resize(binary, target_size, interpolation=cv2.INTER_AREA)
+        progress['step08_centered'] = final.copy()
+        if save_steps: cv2.imwrite(f'{output_dir}/step08_centered.png', final)
     
-    # BƯỚC 11: Làm mịn ranh giới nhẹ (giống MNIST gốc)
-    smoothed = cv2.GaussianBlur(resized, (3, 3), 0)
-    progress['step12_final_smoothed'] = smoothed.copy()
-    if save_steps: cv2.imwrite(f'{output_dir}/step12_final_smoothed.png', smoothed)
+    # BƯỚC 8: Làm mịn ranh giới nhẹ (như MNIST gốc)
+    smoothed = cv2.GaussianBlur(final, (3, 3), 0)
+    progress['step09_final_smoothed'] = smoothed.copy()
+    if save_steps: cv2.imwrite(f'{output_dir}/step09_final_smoothed.png', smoothed)
     
-    # BƯỚC 12: Normalize về [0, 1]
+    # BƯỚC 9: Normalize về [0, 1]
     normalized = smoothed.astype(np.float32) / 255.0
     
     return normalized.reshape(1, 28, 28, 1), smoothed, progress
