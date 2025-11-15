@@ -494,3 +494,124 @@ def preprocess_for_shapes(image: np.ndarray, target_size: Tuple[int, int] = (64,
     if save_steps: cv2.imwrite(f'{output_dir}/step12_final.png', resized)
     
     return normalized.reshape(1, 64, 64, 1), resized, progress
+
+
+def preprocess_for_chinese(
+    image: np.ndarray, 
+    save_steps: bool = False, 
+    output_dir: str = "example_progress/progress_images"
+) -> Tuple[np.ndarray, np.ndarray, Dict]:
+    """
+    Tiền xử lý ảnh cho Chinese MNIST (chữ số Trung Quốc)
+    Tương tự MNIST nhưng output là 64x64
+    
+    Args:
+        image: Ảnh đầu vào (BGR hoặc grayscale)
+        save_steps: Có lưu từng bước xử lý không
+        output_dir: Thư mục lưu các bước
+        
+    Returns:
+        processed: Ảnh đã xử lý (1, 64, 64, 1) cho model
+        display_img: Ảnh để hiển thị
+        progress: Dictionary chứa các bước xử lý
+    """
+    if save_steps and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
+    progress = {}
+    
+    # BƯỚC 1: Chuyển sang grayscale
+    if len(image.shape) == 3:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = image.copy()
+    
+    progress['step01_grayscale'] = gray.copy()
+    if save_steps: cv2.imwrite(f'{output_dir}/step01_grayscale.png', gray)
+    
+    # BƯỚC 2: Làm mờ để giảm nhiễu
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    progress['step02_gaussian_blur'] = blurred.copy()
+    if save_steps: cv2.imwrite(f'{output_dir}/step02_gaussian_blur.png', blurred)
+    
+    # BƯỚC 3: Threshold bằng Otsu để tách foreground/background
+    _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    progress['step03_otsu_threshold'] = thresh.copy()
+    if save_steps: cv2.imwrite(f'{output_dir}/step03_otsu_threshold.png', thresh)
+    
+    # BƯỚC 4: Xác định background (kiểm tra góc ảnh)
+    corners = [
+        thresh[0, 0], thresh[0, -1],
+        thresh[-1, 0], thresh[-1, -1]
+    ]
+    corner_mean = np.mean(corners)
+    
+    # Nếu background là trắng (>127), invert để có nền đen, chữ trắng
+    if corner_mean > 127:
+        inverted = cv2.bitwise_not(thresh)
+    else:
+        inverted = thresh.copy()
+    
+    progress['step04_inverted'] = inverted.copy()
+    if save_steps: cv2.imwrite(f'{output_dir}/step04_inverted.png', inverted)
+    
+    # BƯỚC 5: Tìm bounding box của chữ
+    contours, _ = cv2.findContours(inverted, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    if len(contours) > 0:
+        # Tìm contour lớn nhất
+        largest_contour = max(contours, key=cv2.contourArea)
+        x, y, w, h = cv2.boundingRect(largest_contour)
+        
+        # Vẽ bbox để debug
+        bbox_img = cv2.cvtColor(inverted.copy(), cv2.COLOR_GRAY2BGR)
+        cv2.rectangle(bbox_img, (x, y), (x+w, y+h), (0, 255, 0), 2)
+        progress['step05_bbox'] = bbox_img
+        if save_steps: cv2.imwrite(f'{output_dir}/step05_bbox.png', bbox_img)
+        
+        # BƯỚC 6: Crop với padding
+        pad = max(5, int(min(w, h) * 0.15))
+        x1 = max(0, x - pad)
+        y1 = max(0, y - pad)
+        x2 = min(inverted.shape[1], x + w + pad)
+        y2 = min(inverted.shape[0], y + h + pad)
+        
+        cropped = inverted[y1:y2, x1:x2]
+        progress['step06_cropped'] = cropped.copy()
+        if save_steps: cv2.imwrite(f'{output_dir}/step06_cropped.png', cropped)
+    else:
+        # Nếu không tìm thấy contour, dùng toàn bộ ảnh
+        cropped = inverted.copy()
+        progress['step06_cropped'] = cropped.copy()
+        if save_steps: cv2.imwrite(f'{output_dir}/step06_cropped.png', cropped)
+    
+    # BƯỚC 7: Resize giữ tỷ lệ khung hình, fit vào 56x56
+    h, w = cropped.shape
+    target_inner = 56
+    scale = min(target_inner / w, target_inner / h)
+    new_w = int(w * scale)
+    new_h = int(h * scale)
+    
+    resized_char = cv2.resize(cropped, (new_w, new_h), interpolation=cv2.INTER_AREA)
+    progress['step07_resized'] = resized_char.copy()
+    if save_steps: cv2.imwrite(f'{output_dir}/step07_resized.png', resized_char)
+    
+    # BƯỚC 8: Center vào canvas 64x64
+    canvas = np.zeros((64, 64), dtype=np.uint8)
+    top = (64 - new_h) // 2
+    left = (64 - new_w) // 2
+    canvas[top:top+new_h, left:left+new_w] = resized_char
+    
+    progress['step08_centered'] = canvas.copy()
+    if save_steps: cv2.imwrite(f'{output_dir}/step08_centered.png', canvas)
+    
+    # BƯỚC 9: Làm mượt final
+    final = cv2.GaussianBlur(canvas, (3, 3), 0)
+    progress['step09_final_smoothed'] = final.copy()
+    if save_steps: cv2.imwrite(f'{output_dir}/step09_final_smoothed.png', final)
+    
+    # BƯỚC 10: Normalize về [0, 1]
+    normalized = final.astype(np.float32) / 255.0
+    
+    # Trả về: (1, 64, 64, 1) cho model, ảnh hiển thị, progress dict
+    return normalized.reshape(1, 64, 64, 1), final, progress

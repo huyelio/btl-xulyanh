@@ -14,7 +14,7 @@ import sys
 # Thêm thư mục src vào path
 sys.path.append('src')
 
-from preprocessing import preprocess_for_mnist, preprocess_for_shapes
+from preprocessing import preprocess_for_mnist, preprocess_for_shapes, preprocess_for_chinese
 
 # Cấu hình trang
 st.set_page_config(
@@ -26,6 +26,8 @@ st.set_page_config(
 # CSS tùy chỉnh
 st.markdown("""
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&display=swap');
+
     .main {background-color: #ffffff;}
     .stButton>button {
         width: 100%;
@@ -53,11 +55,14 @@ def load_models():
     # mnist_path = 'models/mnist_model.h5'
     mnist_path = 'models/mnist_model_augmented.h5'
     shapes_path = 'models/shapes_model.h5'
+    chinese_path = 'models/chinese_model.h5'
     
     if os.path.exists(mnist_path):
         models['mnist'] = keras.models.load_model(mnist_path)
     if os.path.exists(shapes_path):
         models['shapes'] = keras.models.load_model(shapes_path)
+    if os.path.exists(chinese_path):
+        models['chinese'] = keras.models.load_model(chinese_path)
     
     return models
 
@@ -65,9 +70,14 @@ def load_models():
 def main():
     """Hàm chính của ứng dụng"""
     
-    st.title("🔍 Nhận dạng Chữ số và Hình học - V3 ULTRA ROBUST")
+    st.title("🔍 Nhận dạng Chữ số, Hình học và Chữ số Trung Quốc")
     st.markdown("*Xử lý hoàn hảo mọi loại ảnh - nền trắng, nền đen, màu sắc bất kỳ*")
     st.markdown("---")
+    
+    # Chinese labels mapping
+    CHINESE_LABELS = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '百', '千', '万', '亿']
+    CHINESE_LABELS_VN = ['số 0', 'số 1', 'số 2', 'số 3', 'số 4', 'số 5', 'số 6', 'số 7', 'số 8', 'số 9', 
+                         'số 10', 'trăm', 'nghìn', 'vạn (10,000)', 'ức (100 triệu)']
     
     models = load_models()
     
@@ -75,7 +85,7 @@ def main():
     
     with col1:
         st.subheader("⚙️ Cài đặt")
-        mode = st.radio("Chế độ:", ["Chữ số (MNIST)", "Hình học (Shapes)"])
+        mode = st.radio("Chế độ:", ["Chữ số (MNIST)", "Hình học (Shapes)", "Chữ số Trung Quốc (Chinese)"])
         
         # Thêm option hiển thị pipeline
         show_pipeline = st.checkbox("📊 Hiển thị từng bước xử lý", value=False)
@@ -92,10 +102,15 @@ def main():
         st.subheader("🎯 Kết quả")
         
         if uploaded_file and st.button("🔍 Nhận dạng"):
-            model_key = 'mnist' if mode == "Chữ số (MNIST)" else 'shapes'
+            if mode == "Chữ số (MNIST)":
+                model_key = 'mnist'
+            elif mode == "Hình học (Shapes)":
+                model_key = 'shapes'
+            else:  # Chinese
+                model_key = 'chinese'
             
             if model_key not in models:
-                st.error("❌ Model chưa được tải!")
+                st.error(f"❌ Model {model_key} chưa được tải! Vui lòng đảm bảo file models/{model_key}_model.h5 tồn tại.")
             else:
                 with st.spinner("Đang xử lý..."):
                     try:
@@ -114,7 +129,7 @@ def main():
                             top3_idx = np.argsort(prediction[0])[-3:][::-1]
                             top3_probs = prediction[0][top3_idx]
                             
-                        else:
+                        elif mode == "Hình học (Shapes)":
                             processed, display_img, progress = preprocess_for_shapes(
                                 image,
                                 save_steps=show_pipeline,
@@ -125,6 +140,21 @@ def main():
                             confidence = prediction[0][result]
                             shapes = ['Hình tròn', 'Hình chữ nhật', 'Hình tam giác']
                             result_text = f"Hình: **{shapes[result]}**"
+                            
+                            # Top 3
+                            top3_idx = np.argsort(prediction[0])[-3:][::-1]
+                            top3_probs = prediction[0][top3_idx]
+                            
+                        else:  # Chinese Numerals
+                            processed, display_img, progress = preprocess_for_chinese(
+                                image,
+                                save_steps=show_pipeline,
+                                output_dir="example_progress/progress_images"
+                            )
+                            prediction = models['chinese'].predict(processed, verbose=0)
+                            result = np.argmax(prediction)
+                            confidence = prediction[0][result]
+                            result_text = f"Chữ số Trung Quốc: **{CHINESE_LABELS[result]}** - {CHINESE_LABELS_VN[result]}"
                             
                             # Top 3
                             top3_idx = np.argsort(prediction[0])[-3:][::-1]
@@ -150,8 +180,10 @@ def main():
                             for idx, prob in zip(top3_idx, top3_probs):
                                 if mode == "Chữ số (MNIST)":
                                     label = str(idx)
-                                else:
+                                elif mode == "Hình học (Shapes)":
                                     label = shapes[idx]
+                                else:  # Chinese
+                                    label = f"{CHINESE_LABELS[idx]} ({CHINESE_LABELS_VN[idx]})"
                                 
                                 # Progress bar cho mỗi prediction
                                 st.write(f"**{label}**")
@@ -191,10 +223,12 @@ def main():
     st.markdown("---")
     st.markdown("""
     <div style='text-align: center; color: #666'>
-        <p><strong>✨ V3 Ultra Robust Features:</strong></p>
+        <p><strong>✨ V4 Enhanced Features:</strong></p>
+        <p>🔢 MNIST: Nhận dạng chữ số 0-9 (28x28)</p>
+        <p>📐 Shapes: Nhận dạng hình học (tròn, chữ nhật, tam giác)</p>
+        <p>🇨🇳 Chinese: Nhận dạng chữ số Trung Quốc (15 ký tự, 64x64)</p>
         <p>🎯 Corner-based background detection</p>
         <p>🔄 Perfect normalization: WHITE on BLACK</p>
-        <p>📐 CLAHE + Otsu + Morphology pipeline</p>
         <p>📸 Save all processing steps</p>
         <p>💻 Running Locally</p>
     </div>
