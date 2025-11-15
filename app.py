@@ -84,9 +84,70 @@ def main():
     models = load_models()
 
     # Biến dùng chung cho cả upload và canvas
-    uploaded_file = None
-    image = None
+    uploaded_files = []
     canvas_image = None
+
+    # Hàm phụ xử lý 1 ảnh (dùng chung cho canvas và từng file trong batch)
+    def run_inference_for_image(input_image, mode, show_pipeline, output_dir):
+        if mode == "Chữ số (MNIST)":
+            processed, display_img, progress = preprocess_for_mnist(
+                input_image,
+                save_steps=show_pipeline,
+                output_dir=output_dir,
+            )
+            prediction = models["mnist"].predict(processed, verbose=0)
+            result = np.argmax(prediction)
+            confidence = prediction[0][result]
+            result_text = f"Chữ số: **{result}**"
+
+            top3_idx = np.argsort(prediction[0])[-3:][::-1]
+            top3_probs = prediction[0][top3_idx]
+            shapes_labels = None
+
+        elif mode == "Hình học (Shapes)":
+            processed, display_img, progress = preprocess_for_shapes(
+                input_image,
+                save_steps=show_pipeline,
+                output_dir=output_dir,
+            )
+            prediction = models["shapes"].predict(processed, verbose=0)
+            result = np.argmax(prediction)
+            confidence = prediction[0][result]
+            shapes_labels = [
+                "Hình tròn",
+                "Hình chữ nhật",
+                "Hình tam giác",
+                "Hình ngũ giác",
+                "Hình lục giác",
+                "Hình bát giác",
+                "Hình ngôi sao",
+                "Hình thoi",
+                "Hình chữ thập",
+                "Mũi tên",
+            ]
+            result_text = f"Hình: **{shapes_labels[result]}**"
+
+            top3_idx = np.argsort(prediction[0])[-3:][::-1]
+            top3_probs = prediction[0][top3_idx]
+
+        else:  # Chinese Numerals
+            processed, display_img, progress = preprocess_for_chinese(
+                input_image,
+                save_steps=show_pipeline,
+                output_dir=output_dir,
+            )
+            prediction = models["chinese"].predict(processed, verbose=0)
+            result = np.argmax(prediction)
+            confidence = prediction[0][result]
+            result_text = (
+                f"Chữ số Trung Quốc: **{CHINESE_LABELS[result]}** - {CHINESE_LABELS_VN[result]}"
+            )
+
+            top3_idx = np.argsort(prediction[0])[-3:][::-1]
+            top3_probs = prediction[0][top3_idx]
+            shapes_labels = None
+
+        return result_text, confidence, top3_idx, top3_probs, display_img, progress, shapes_labels
     
     col1, col2 = st.columns([1, 1])
     
@@ -99,12 +160,24 @@ def main():
         
         # --- Khu vực upload ảnh ---
         st.subheader("Tải ảnh")
-        uploaded_file = st.file_uploader("Chọn ảnh", type=['png', 'jpg', 'jpeg'])
-        
-        if uploaded_file is not None:
-            file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-            image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-            st.image(image, channels="BGR", use_container_width=True, caption="Ảnh gốc")
+        uploaded_files = st.file_uploader(
+            "Chọn một hoặc nhiều ảnh",
+            type=["png", "jpg", "jpeg"],
+            accept_multiple_files=True,
+        )
+
+        if uploaded_files:
+            st.write(f"Đã chọn {len(uploaded_files)} ảnh.")
+            # Hiển thị nhanh ảnh đầu tiên để preview
+            first_file = uploaded_files[0]
+            first_file_bytes = np.asarray(bytearray(first_file.read()), dtype=np.uint8)
+            first_image = cv2.imdecode(first_file_bytes, cv2.IMREAD_COLOR)
+            st.image(
+                first_image,
+                channels="BGR",
+                use_container_width=True,
+                caption=f"Ảnh mẫu: {first_file.name}",
+            )
 
         # --- Khu vực vẽ trực tiếp trên canvas ---
         st.subheader("Vẽ trực tiếp trên canvas")
@@ -154,115 +227,77 @@ def main():
         recognize_clicked = st.button("Nhận dạng")
 
         if recognize_clicked:
-            # Ưu tiên dùng ảnh từ canvas, nếu không có thì dùng ảnh upload
-            input_image = None
-            if canvas_image is not None:
-                input_image = canvas_image
-            elif image is not None:
-                input_image = image
+            # Xác định model tương ứng với chế độ
+            if mode == "Chữ số (MNIST)":
+                model_key = "mnist"
+            elif mode == "Hình học (Shapes)":
+                model_key = "shapes"
+            else:
+                model_key = "chinese"
 
-            if input_image is None:
-                st.warning("Vui lòng vẽ trên canvas hoặc tải lên một ảnh trước khi nhận dạng.")
+            if model_key not in models:
+                st.error(
+                    f"Model {model_key} chưa được tải! Vui lòng đảm bảo file models/{model_key}_model.h5 tồn tại."
+                )
                 return
 
-            if mode == "Chữ số (MNIST)":
-                model_key = 'mnist'
-            elif mode == "Hình học (Shapes)":
-                model_key = 'shapes'
-            else:  # Chinese
-                model_key = 'chinese'
-            
-            if model_key not in models:
-                st.error(f"Model {model_key} chưa được tải! Vui lòng đảm bảo file models/{model_key}_model.h5 tồn tại.")
-            else:
-                with st.spinner("Đang xử lý..."):
+            # Nếu có ảnh từ canvas -> ưu tiên xử lý đơn lẻ
+            if canvas_image is not None:
+                with st.spinner("Đang xử lý ảnh từ canvas..."):
                     try:
-                        if mode == "Chữ số (MNIST)":
-                            processed, display_img, progress = preprocess_for_mnist(
-                                input_image, 
-                                save_steps=show_pipeline,
-                                output_dir="example_progress/progress_images"
-                            )
-                            prediction = models['mnist'].predict(processed, verbose=0)
-                            result = np.argmax(prediction)
-                            confidence = prediction[0][result]
-                            result_text = f"Chữ số: **{result}**"
-                            
-                            # Top 3
-                            top3_idx = np.argsort(prediction[0])[-3:][::-1]
-                            top3_probs = prediction[0][top3_idx]
-                            
-                        elif mode == "Hình học (Shapes)":
-                            processed, display_img, progress = preprocess_for_shapes(
-                                input_image,
-                                save_steps=show_pipeline,
-                                output_dir="example_progress/progress_images"
-                            )
-                            prediction = models['shapes'].predict(processed, verbose=0)
-                            result = np.argmax(prediction)
-                            confidence = prediction[0][result]
-                            shapes = ['Hình tròn', 'Hình chữ nhật', 'Hình tam giác', 'Hình ngũ giác', 'Hình lục giác',
-                                     'Hình bát giác', 'Hình ngôi sao', 'Hình thoi', 'Hình chữ thập', 'Mũi tên']
-                            result_text = f"Hình: **{shapes[result]}**"
-                            
-                            # Top 3
-                            top3_idx = np.argsort(prediction[0])[-3:][::-1]
-                            top3_probs = prediction[0][top3_idx]
-                            
-                        else:  # Chinese Numerals
-                            processed, display_img, progress = preprocess_for_chinese(
-                                input_image,
-                                save_steps=show_pipeline,
-                                output_dir="example_progress/progress_images"
-                            )
-                            prediction = models['chinese'].predict(processed, verbose=0)
-                            result = np.argmax(prediction)
-                            confidence = prediction[0][result]
-                            result_text = f"Chữ số Trung Quốc: **{CHINESE_LABELS[result]}** - {CHINESE_LABELS_VN[result]}"
-                            
-                            # Top 3
-                            top3_idx = np.argsort(prediction[0])[-3:][::-1]
-                            top3_probs = prediction[0][top3_idx]
-                        
-                        # Hiển thị kết quả chính
+                        (
+                            result_text,
+                            confidence,
+                            top3_idx,
+                            top3_probs,
+                            display_img,
+                            progress,
+                            shapes_labels,
+                        ) = run_inference_for_image(
+                            canvas_image,
+                            mode,
+                            show_pipeline,
+                            "example_progress/progress_images",
+                        )
+
                         st.markdown(
                             f'<div class="result-box">'
                             f'<h1 style="text-align:center; color:#2E7D32">{result_text}</h1>'
                             f'<p style="text-align:center; font-size:24px; color:#1976D2">Độ tin cậy: {confidence*100:.1f}%</p>'
                             f'</div>',
-                            unsafe_allow_html=True
+                            unsafe_allow_html=True,
                         )
-                        
-                        # Hiển thị ảnh đã xử lý
+
                         col_a, col_b = st.columns(2)
                         with col_a:
-                            st.image(display_img, use_container_width=True, caption="Ảnh sau xử lý cuối cùng", clamp=True)
-                        
+                            st.image(
+                                display_img,
+                                use_container_width=True,
+                                caption="Ảnh sau xử lý cuối cùng",
+                                clamp=True,
+                            )
+
                         with col_b:
-                            # Top 3 predictions
-                            st.markdown("**Top 3 dự đoán:**")
-                            for idx, prob in zip(top3_idx, top3_probs):
+                            st.markdown("Top 3 dự đoán:")
+                            for idx_pred, prob in zip(top3_idx, top3_probs):
                                 if mode == "Chữ số (MNIST)":
-                                    label = str(idx)
-                                elif mode == "Hình học (Shapes)":
-                                    label = shapes[idx]
-                                else:  # Chinese
-                                    label = f"{CHINESE_LABELS[idx]} ({CHINESE_LABELS_VN[idx]})"
-                                
-                                # Progress bar cho mỗi prediction
-                                st.write(f"**{label}**")
+                                    label = str(idx_pred)
+                                elif mode == "Hình học (Shapes)" and shapes_labels is not None:
+                                    label = shapes_labels[idx_pred]
+                                else:
+                                    label = f"{CHINESE_LABELS[idx_pred]} ({CHINESE_LABELS_VN[idx_pred]})"
+
+                                st.write(label)
                                 st.progress(float(prob))
                                 st.write(f"{prob*100:.1f}%")
-                        
-                        # Hiển thị pipeline nếu được chọn
+
                         if show_pipeline and progress:
                             st.markdown("---")
                             st.subheader("Các bước xử lý ảnh")
-                            
-                            # Hiển thị grid các bước
-                            step_keys = sorted([k for k in progress.keys() if k.startswith('step')])
-                            
-                            # Hiển thị 3 ảnh/hàng
+
+                            step_keys = sorted(
+                                [k for k in progress.keys() if k.startswith("step")]
+                            )
                             num_cols = 3
                             for i in range(0, len(step_keys), num_cols):
                                 cols = st.columns(num_cols)
@@ -270,17 +305,135 @@ def main():
                                     if i + j < len(step_keys):
                                         key = step_keys[i + j]
                                         step_img = progress[key]
-                                        
-                                        # Tên bước dễ đọc
-                                        step_name = key.replace('step', 'Bước ').replace('_', ' ').title()
-                                        
+                                        step_name = (
+                                            key.replace("step", "Bước ")
+                                            .replace("_", " ")
+                                            .title()
+                                        )
                                         with cols[j]:
-                                            st.image(step_img, caption=step_name, use_container_width=True, clamp=True)
-                            
-                            st.info(f"Đã lưu {len(step_keys)} ảnh vào: example_progress/progress_images/")
-                    
+                                            st.image(
+                                                step_img,
+                                                caption=step_name,
+                                                use_container_width=True,
+                                                clamp=True,
+                                            )
                     except Exception as e:
                         st.error(f"Lỗi: {e}")
+                        import traceback
+                        st.code(traceback.format_exc())
+
+                return
+
+            # Không có canvas -> xử lý lô ảnh upload
+            if not uploaded_files:
+                st.warning(
+                    "Vui lòng vẽ trên canvas hoặc tải lên ít nhất một ảnh trước khi nhận dạng."
+                )
+                return
+
+            with st.spinner("Đang xử lý lô ảnh..."):
+                for idx_file, uploaded_file in enumerate(uploaded_files):
+                    try:
+                        # Do file đã được read() khi preview, cần seek(0) để đọc lại
+                        uploaded_file.seek(0)
+                        file_bytes = np.asarray(
+                            bytearray(uploaded_file.read()), dtype=np.uint8
+                        )
+                        input_image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+
+                        # Chọn thư mục lưu bước xử lý cho từng file (nếu bật)
+                        if show_pipeline:
+                            base_name, _ = os.path.splitext(uploaded_file.name)
+                            safe_name = base_name.replace(" ", "_")
+                            out_dir = os.path.join(
+                                "example_progress/progress_images", safe_name
+                            )
+                        else:
+                            out_dir = "example_progress/progress_images"
+
+                        (
+                            result_text,
+                            confidence,
+                            top3_idx,
+                            top3_probs,
+                            display_img,
+                            progress,
+                            shapes_labels,
+                        ) = run_inference_for_image(
+                            input_image, mode, show_pipeline, out_dir
+                        )
+
+                        with st.expander(
+                            f"Ảnh {idx_file + 1}: {uploaded_file.name}",
+                            expanded=(len(uploaded_files) == 1),
+                        ):
+                            st.markdown(
+                                f'<div class="result-box">'
+                                f'<h1 style="text-align:center; color:#2E7D32">{result_text}</h1>'
+                                f'<p style="text-align:center; font-size:24px; color:#1976D2">Độ tin cậy: {confidence*100:.1f}%</p>'
+                                f'</div>',
+                                unsafe_allow_html=True,
+                            )
+
+                            col_orig, col_proc = st.columns(2)
+                            with col_orig:
+                                st.image(
+                                    input_image,
+                                    channels="BGR",
+                                    use_container_width=True,
+                                    caption="Ảnh gốc",
+                                )
+                            with col_proc:
+                                st.image(
+                                    display_img,
+                                    use_container_width=True,
+                                    caption="Ảnh sau xử lý cuối cùng",
+                                    clamp=True,
+                                )
+
+                            st.markdown("Top 3 dự đoán:")
+                            for idx_pred, prob in zip(top3_idx, top3_probs):
+                                if mode == "Chữ số (MNIST)":
+                                    label = str(idx_pred)
+                                elif mode == "Hình học (Shapes)" and shapes_labels is not None:
+                                    label = shapes_labels[idx_pred]
+                                else:
+                                    label = f"{CHINESE_LABELS[idx_pred]} ({CHINESE_LABELS_VN[idx_pred]})"
+
+                                st.write(label)
+                                st.progress(float(prob))
+                                st.write(f"{prob*100:.1f}%")
+
+                            if show_pipeline and progress:
+                                st.markdown("---")
+                                st.subheader("Các bước xử lý ảnh")
+
+                                step_keys = sorted(
+                                    [k for k in progress.keys() if k.startswith("step")]
+                                )
+                                num_cols = 3
+                                for i in range(0, len(step_keys), num_cols):
+                                    cols = st.columns(num_cols)
+                                    for j in range(num_cols):
+                                        if i + j < len(step_keys):
+                                            key = step_keys[i + j]
+                                            step_img = progress[key]
+                                            step_name = (
+                                                key.replace("step", "Bước ")
+                                                .replace("_", " ")
+                                                .title()
+                                            )
+                                            with cols[j]:
+                                                st.image(
+                                                    step_img,
+                                                    caption=step_name,
+                                                    use_container_width=True,
+                                                    clamp=True,
+                                                )
+
+                            st.markdown("---")
+                    except Exception as e:
+                        st.error(f"Lỗi với file {uploaded_file.name}: {e}")
                         import traceback
                         st.code(traceback.format_exc())
     
