@@ -103,3 +103,5 @@ dmypy.json
 *.sqlite3
 
 shapes_dataset_v2/
+shapes_dataset_v3/
+preprocessing_v4_test/

@@ -26,7 +26,7 @@ from preprocessing import (
 # Cấu hình trang
 st.set_page_config(
     page_title="Nhận dạng CNN",
-    page_icon="🔍",
+    page_icon="",
     layout="wide"
 )
 
@@ -61,7 +61,7 @@ def load_models():
     
     # mnist_path = 'models/mnist_model.h5'
     mnist_path = 'models/mnist_model_augmented.h5'
-    shapes_path = 'models/shapes_model_v2.h5'
+    shapes_path = 'models/best_shapes_model_v3.h5'
     chinese_path = 'models/chinese_model.h5'
     alphabet_path = 'models/alphabet_model.h5'
     
