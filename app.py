@@ -61,7 +61,7 @@ def load_models():
     
     # mnist_path = 'models/mnist_model.h5'
     mnist_path = 'models/mnist_model_augmented.h5'
-    shapes_path = 'models/best_shapes_model_v3.h5'
+    shapes_path = 'models/shapes_model_v3_final.h5'
     chinese_path = 'models/chinese_model.h5'
     alphabet_path = 'models/alphabet_model.h5'
     
@@ -137,16 +137,16 @@ def main():
             result = np.argmax(prediction)
             confidence = prediction[0][result]
             shapes_labels = [
+                "Hình mũi tên",
                 "Hình tròn",
-                "Hình chữ nhật",
-                "Hình tam giác",
-                "Hình ngũ giác",
+                "Hình chữ thập",
                 "Hình lục giác",
                 "Hình bát giác",
-                "Hình ngôi sao",
+                "Hình ngũ giác",
+                "Hình chữ nhật",
                 "Hình thoi",
-                "Hình chữ thập",
-                "Mũi tên",
+                "Hình ngôi sao",
+                "Hình tam giác",
             ]
             result_text = f"Hình: **{shapes_labels[result]}**"
 
