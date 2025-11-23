@@ -44,12 +44,12 @@ venv.bak/
 *.ipynb_checkpoints/
 
 # Models (large files - but keep .gitkeep)
-models/*.h5
-models/*.keras
-models/*.pb
-models/*.ckpt
-models/*.pth
-!models/.gitkeep
+# models/*.h5
+# models/*.keras
+# models/*.pb
+# models/*.ckpt
+# models/*.pth
+# !models/.gitkeep
 
 # Data (keep structure but not actual data)
 data/shapes/train/
