@@ -60,8 +60,8 @@ def load_models():
     models = {}
     
     # mnist_path = 'models/mnist_model.h5'
-    mnist_path = 'models/mnist_model_augmented.h5'
-    shapes_path = 'models/shapes_model_v3_final.h5'
+    mnist_path = 'models/mnist_model.h5'
+    shapes_path = 'models/shapes_model.h5'
     chinese_path = 'models/chinese_model.h5'
     alphabet_path = 'models/alphabet_model.h5'
     
