@@ -1,4 +1,4 @@
-## Giới thiệu dự án Nhận dạng chữ số viết tay và hình dạng đơn giản bằng mạng neural CNN
+## Dự án Nhận dạng chữ số viết tay và hình dạng đơn giản bằng mạng neural CNN
 
 Dự án là một ứng dụng web dùng **CNN** có khả năng nhận dạng chữ số viết tay (0–9), các chữ cái và các hình dạng cơ bản(tam giác, vuông, tròn, chữ nhật…) từ ảnh đầu vào.
 Áp dụng kết hợp kỹ thuật xử lý ảnh và mạng nơ-ron tích chập (CNN).
@@ -12,7 +12,7 @@ Xây dựng 4 mô hình CNN độc lập cho 4 nhiệm vụ:
 
 # Danh Sách Thành Viên Nhóm
 
-| STT |   Họ và Tên    |    MSBV    |
+| STT |   Họ và Tên    |    MSSV    |
 | :-: | :------------: | :--------: |
 |  1  | Trần Quang Huy | B22DCCN397 |
 |  2  |  Đỗ Đức Cảnh   | B22DCCN086 |
