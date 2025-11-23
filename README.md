@@ -1,11 +1,22 @@
-## Giới thiệu dự án
+## Giới thiệu dự án Nhận dạng chữ số viết tay và hình dạng đơn giản bằng mạng neural CNN
 
-Dự án là một ứng dụng web dùng **CNN** để nhận dạng:
+Dự án là một ứng dụng web dùng **CNN** có khả năng nhận dạng chữ số viết tay (0–9), các chữ cái và các hình dạng cơ bản(tam giác, vuông, tròn, chữ nhật…) từ ảnh đầu vào.
+Áp dụng kết hợp kỹ thuật xử lý ảnh và mạng nơ-ron tích chập (CNN).
+
+Xây dựng 4 mô hình CNN độc lập cho 4 nhiệm vụ:
 
 - **Chữ số viết tay (MNIST)**
 - **Hình học cơ bản (shapes: circle, triangle, star, …)**
 - **Chữ số Trung Quốc (Chinese MNIST)**
 - **Chữ cái in hoa A–Z**
+
+# Danh Sách Thành Viên Nhóm
+
+| STT |   Họ và Tên    |    MSBV    |
+| :-: | :------------: | :--------: |
+|  1  | Trần Quang Huy | B22DCCN397 |
+|  2  |  Đỗ Đức Cảnh   | B22DCCN086 |
+|  3  | Trần Quang Huy | B22DCCN398 |
 
 Giao diện được xây dựng bằng **Streamlit**, cho phép:
 
@@ -85,11 +96,11 @@ Tại giao diện chính, bạn có thể:
 
 ## Huấn luyện lại mô hình trên Google Colab
 
-Các file train nằm trong thư mục `src/` đã được thiết kế để bạn **mở trực tiếp trên Google Colab**:
+Các file train nằm trong thư mục `src/` đã được thiết kế để **chạy trực tiếp trên Google Colab**:
 
 - `src/Train_MNIST.ipynb`
 - `src/train_shapes.ipynb`
 - `src/Train_Chinese_MNIST.ipynb`
 - `src/train_alphabet.ipynb`
 
-Bạn có thể dùng chúng để train lại mô hình, sau đó copy file `.h5` mới về thư mục `models/` để ứng dụng sử dụng.
+Có thể dùng chúng để train lại mô hình, sau đó copy file `.h5` mới về thư mục `models/` để ứng dụng sử dụng.
