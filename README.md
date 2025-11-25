@@ -30,36 +30,36 @@ Các mô hình CNN đã huấn luyện sẵn được lưu trong thư mục `mod
 
 ## Cấu trúc thư mục chính
 
+```txt
 project_root/
 │
 ├── code/
-│ ├── app.py # File chính chạy ứng dụng Streamlit
-│ ├── requirements.txt # Danh sách thư viện cần cài đặt
-│ │
-│ ├── src/ # Mã nguồn & notebook train model
-│ │ ├── preprocessing.py
-│ │ ├── Train_MNIST.ipynb
-│ │ ├── train_shapes.ipynb
-│ │ ├── Train_Chinese_MNIST.ipynb
-│ │ └── train_alphabet.ipynb
-│ │
-│ ├── models/ # Các mô hình đã train
-│ │ ├── mnist_model.h5 / mnist_model_augmented.h5
-│ │ ├── shapes_model_v3_final.h5
-│ │ ├── chinese_model.h5
-│ │ └── alphabet_model.h5
-│ │
-│ ├── shapes_dataset_v3/ # Dataset hình học (train/test)
-│ │
-│ ├── example_progress/ # Lưu ảnh minh họa pipeline
-│ │
-│ └── test_img/ # Ảnh test nhanh  
+│   ├── app.py                    # File chính chạy ứng dụng Streamlit
+│   ├── requirements.txt          # Danh sách thư viện cần cài đặt
+│   │
+│   ├── src/                      # Mã nguồn & notebook train model
+│   │   ├── preprocessing.py
+│   │   ├── Train_MNIST.ipynb
+│   │   ├── train_shapes.ipynb
+│   │   ├── Train_Chinese_MNIST.ipynb
+│   │   └── train_alphabet.ipynb
+│   │
+│   ├── models/                   # Các mô hình đã train
+│   │   ├── mnist_model.h5 / mnist_model_augmented.h5
+│   │   ├── shapes_model_v3_final.h5
+│   │   ├── chinese_model.h5
+│   │   └── alphabet_model.h5
+│   │
+│   ├── shapes_dataset_v3/        # Dataset hình học (train/test)
+│   │
+│   ├── example_progress/         # Lưu ảnh minh họa pipeline
+│   │
+│   └── test_img/                 # Ảnh test nhanh
 │
 └── báo cáo/
-├── Báo cáo XLA Nhóm 15.pdf # Báo cáo PDF
-└── Slide Xử lý ảnh Nhóm 15.pdf # Slide thuyết trình
-
----
+    ├── Báo cáo XLA Nhóm 15.pdf   # Báo cáo PDF
+    └── Slide Xử lý ảnh Nhóm 15.pdf # Slide thuyết trình
+```
 
 ## Yêu cầu hệ thống
 
