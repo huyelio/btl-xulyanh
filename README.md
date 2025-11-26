@@ -10,7 +10,7 @@ Xây dựng 4 mô hình CNN độc lập cho 4 nhiệm vụ:
 - **Chữ số Trung Quốc (Chinese MNIST)**
 - **Chữ cái in hoa A–Z**
 
-# Danh Sách Thành Viên Nhóm
+# Danh Sách Thành Viên Nhóm 17
 
 | STT |   Họ và Tên    |    MSSV    |
 | :-: | :------------: | :--------: |
@@ -57,8 +57,8 @@ project_root/
 │   └── test_img/                 # Ảnh test nhanh
 │
 └── báo cáo/
-    ├── Báo cáo XLA Nhóm 15.pdf   # Báo cáo PDF
-    └── Slide Xử lý ảnh Nhóm 15.pdf # Slide thuyết trình
+    ├── Báo cáo XLA Nhóm 17.pdf   # Báo cáo PDF
+    └── Slide Xử lý ảnh Nhóm 17.pdf # Slide thuyết trình
 ```
 
 ## Yêu cầu hệ thống
